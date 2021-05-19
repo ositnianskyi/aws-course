@@ -1,0 +1,49 @@
+AWSTemplateFormatVersion: 2010-09-09
+Parameters:
+  InstanceType:
+    Description: EC2 instance type
+    Type: String
+    Default: t2.micro
+    AllowedValues:
+      - t2.nano
+      - t2.micro
+      - t2.small
+      - t2.medium
+      - t2.large
+
+  KeyName:
+    Description: Name of an existing EC2 KeyPair to enable SSH access to the instance.
+    Type: 'AWS::EC2::KeyPair::KeyName'
+    Default: os_admin_key
+
+  ImageAMI:
+    # default ami Amazon Linux 64-bit (x86)
+    Description: Name of an existing AMI image.
+    Type: String
+    Default: ami-0d5eff06f840b45e9
+
+Resources:
+  Ec2Instance:
+    Type: 'AWS::EC2::Instance'
+    Description: Basic EC2 instance with ssh
+    Properties:
+      ImageId: !Ref ImageAMI
+      KeyName: !Ref KeyName
+      InstanceType: !Ref InstanceType
+      SecurityGroups:
+        - !Ref Ec2SecurityGroupSsh
+
+  Ec2SecurityGroupSsh:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for ssh access
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+
+Outputs:
+  PublicIp:
+    Description: Public IP adress of EC2 instance
+    Value: !GetAtt Ec2Instance.PublicIp
