@@ -1,0 +1,93 @@
+AWSTemplateFormatVersion: 2010-09-09
+Parameters:
+  InstanceType:
+    Description: EC2 instance type
+    Type: String
+    Default: t2.micro
+    AllowedValues:
+      - t2.nano
+      - t2.micro
+      - t2.small
+      - t2.medium
+      - t2.large
+
+  KeyName:
+    Description: Name of an existing EC2 KeyPair to enable SSH access to the instance.
+    Type: 'AWS::EC2::KeyPair::KeyName'
+    Default: os_admin_key
+
+  ImageAMI:
+    # default ami Amazon Linux 64-bit (x86)
+    Description: Name of an existing AMI image.
+    Type: String
+    Default: ami-0d5eff06f840b45e9
+
+  AvailabilityZonesList:
+    Description: Availability zones for auto scaling group.
+    Type: CommaDelimitedList
+    Default: 'us-east-1a'
+
+Resources:
+  Ec2LaunchTemplate:
+    Type: 'AWS::EC2::LaunchTemplate'
+    Description: Launch template with basic EC2 instance
+    Metadata:
+      AWS::CloudFormation::Init:
+        config:
+          packages:
+            yum:
+              java-1.8.0-openjdk: []
+    Properties:
+      LaunchTemplateName: BasicEc2LaunchTemplate
+      LaunchTemplateData:
+        ImageId: !Ref ImageAMI
+        KeyName: !Ref KeyName
+        InstanceType: !Ref InstanceType
+        SecurityGroups:
+          - !Ref Ec2SecurityGroupSsh
+          - !Ref Ec2SecurityGroupHttp
+        UserData: !Base64
+          'Fn::Join':
+            - ''
+            - - |
+                #!/bin/bash -xe
+              - |
+                # Install the files and packages from the metadata
+              - '/opt/aws/bin/cfn-init -v '
+              - '         --stack '
+              - !Ref 'AWS::StackName'
+              - '         --resource Ec2LaunchTemplate '
+              - '         --region '
+              - !Ref 'AWS::Region'
+              - |+
+
+  BasicAutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      MinSize: '2'
+      MaxSize: '2'
+      DesiredCapacity: '2'
+      LaunchTemplate:
+        LaunchTemplateId: !Ref Ec2LaunchTemplate
+        Version: !GetAtt Ec2LaunchTemplate.LatestVersionNumber
+      AvailabilityZones: !Ref AvailabilityZonesList
+
+  Ec2SecurityGroupSsh:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for ssh access
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+
+  Ec2SecurityGroupHttp:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Enable HTTP access via user defined port
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
