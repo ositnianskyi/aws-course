@@ -1,4 +1,4 @@
-# Week 00
+# Week 01
 ### Task
 Develop and deploy via AWS CLI CloudFormation script which will create next infrastructure
 - Auto-scaling group (ASG) with two EC2 instances within it (we need to ensure that min amount of instances in the ASG is 2)

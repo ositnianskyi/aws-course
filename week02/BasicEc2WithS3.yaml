@@ -1,0 +1,104 @@
+AWSTemplateFormatVersion: 2010-09-09
+Parameters:
+  InstanceType:
+    Description: EC2 instance type
+    Type: String
+    Default: t2.micro
+    AllowedValues:
+      - t2.nano
+      - t2.micro
+      - t2.small
+      - t2.medium
+      - t2.large
+
+  KeyName:
+    Description: Name of an existing EC2 KeyPair to enable SSH access to the instance.
+    Type: 'AWS::EC2::KeyPair::KeyName'
+    Default: os_admin_key_us2
+
+  ImageAMI:
+    # default ami Amazon Linux 64-bit (x86)
+    Description: Name of an existing AMI image.
+    Type: String
+    Default: ami-0cf6f5c8a62fa5da6
+
+  S3FileURI:
+    Description: S3 URI
+    Type: String
+    Default: 's3://os-aws-cource-bucket-test/hello_file.txt'
+
+Resources:
+  Ec2Instance:
+    Type: 'AWS::EC2::Instance'
+    Description: Basic EC2 instance with ssh
+    Properties:
+      ImageId: !Ref ImageAMI
+      KeyName: !Ref KeyName
+      InstanceType: !Ref InstanceType
+      SecurityGroups:
+        - !Ref Ec2SecurityGroupSsh
+        - !Ref Ec2SecurityGroupHttp
+      IamInstanceProfile: !Ref S3InstanceProfile
+      UserData: !Base64
+        'Fn::Join':
+          - ''
+          - - |
+              #!/bin/bash -xe
+            - |
+              # Copy file from S3 to local inctance
+            - 'aws s3 cp '
+            - !Ref S3FileURI
+            - ' . '
+            - |+
+
+  Ec2SecurityGroupSsh:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for ssh access
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+
+  Ec2SecurityGroupHttp:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Enable HTTP access via user defined port
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+
+  S3InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Path: "/"
+      Roles:
+        - Ref: S3GetRole
+
+  S3GetRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Action: 'sts:AssumeRole'
+            Principal:
+              Service: ec2.amazonaws.com
+            Effect: Allow
+            Sid: ''
+      Policies:
+        - PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Action:
+                  - 's3:GetObject'
+                Resource: '*'
+                Effect: Allow
+          PolicyName: AuthenticatedS3GetObjects
+
+Outputs:
+  PublicIp:
+    Description: Public IP adress of EC2 instance
+    Value: !GetAtt Ec2Instance.PublicIp
